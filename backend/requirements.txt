@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+pydantic
+python-multipart
+httpx
+google-genai
+openai
+faster-whisper
+edge-tts
+duckduckgo-search
+pip install groq --break-system-packages
