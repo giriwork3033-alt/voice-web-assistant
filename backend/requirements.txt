@@ -4,9 +4,15 @@ python-dotenv
 pydantic
 python-multipart
 httpx
-google-genai
 openai
+groq
+ddgs
 faster-whisper
 edge-tts
-duckduckgo-search
-pip install groq --break-system-packages
+
+# Only needed if you plan to switch LLM_PROVIDER=gemini on this deployment.
+# Safe to leave commented out for the current groq-based live deploy - if
+# you re-enable it, make sure it actually installs cleanly on Render before
+# relying on it, since a failed pip install here fails the whole build,
+# regardless of factory.py's lazy-import handling at runtime.
+# google-genai
