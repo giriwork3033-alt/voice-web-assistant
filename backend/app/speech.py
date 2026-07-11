@@ -5,27 +5,56 @@ import tempfile
 from pathlib import Path
 
 import edge_tts
-from faster_whisper import WhisperModel
 from .config import settings
 
-_whisper_model: WhisperModel | None = None
-
-def _get_whisper_model() -> WhisperModel:
-    global _whisper_model
-    if _whisper_model is None:
-        # int8 keeps it light for laptops. First run downloads the model.
-        _whisper_model = WhisperModel(settings.whisper_model_size, device="cpu", compute_type="int8")
-    return _whisper_model
+# ---------------------------------------------------------------------------
+# Speech-to-text: Groq's hosted Whisper API (fast, GPU-accelerated)
+# Falls back to local faster-whisper only if GROQ_API_KEY is missing.
+# ---------------------------------------------------------------------------
 
 async def speech_to_text(file_path: str) -> str:
+    if settings.groq_api_key:
+        return await _stt_groq(file_path)
+    return await _stt_local(file_path)
+
+
+async def _stt_groq(file_path: str) -> str:
+    """Use Groq's hosted Whisper API. Typically 1-2s for short clips,
+    vs 60-80s for local faster-whisper on a free-tier CPU."""
     try:
-        model = _get_whisper_model()
+        from groq import AsyncGroq
+        client = AsyncGroq(api_key=settings.groq_api_key)
+        with open(file_path, "rb") as audio_file:
+            transcription = await client.audio.transcriptions.create(
+                file=(file_path, audio_file.read()),
+                model="whisper-large-v3",
+                language="en",
+                response_format="text",
+            )
+        text = (transcription or "").strip()
+        print(f"[STT] Groq Whisper returned: '{text[:100]}'")
+        return text
+    except Exception as e:
+        print(f"[STT] Groq Whisper failed ({type(e).__name__}: {e}), falling back to local")
+        return await _stt_local(file_path)
+
+
+async def _stt_local(file_path: str) -> str:
+    """Local faster-whisper fallback. Only used if GROQ_API_KEY is missing."""
+    try:
+        from faster_whisper import WhisperModel
+        model = WhisperModel(settings.whisper_model_size, device="cpu", compute_type="int8")
         segments, _ = model.transcribe(file_path, beam_size=5)
         text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
         return text.strip()
     except Exception as e:
-        print(f"STT failed: {type(e).__name__}: {e}")
+        print(f"[STT] Local whisper failed: {type(e).__name__}: {e}")
         return ""
+
+
+# ---------------------------------------------------------------------------
+# Text-to-speech: Edge-TTS (unchanged, already fast at ~0.5-1s)
+# ---------------------------------------------------------------------------
 
 async def text_to_speech(text: str) -> str:
     if not text:
