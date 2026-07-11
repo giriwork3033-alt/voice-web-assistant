@@ -36,31 +36,38 @@ def health():
     return {"status": "ok", "llm_provider": settings.llm_provider}
 
 async def _build_response(transcript: str):
+    import asyncio
     import time
+
     transcript = (transcript or "").strip()
     if not transcript:
         answer = "I couldn't understand the input. Please try again."
         return {"transcript": "", "answer": answer, "audio_base64": await text_to_speech(answer)}
 
     t0 = time.time()
-    safe_input = await is_safe_input(transcript)
+
+    # Run the guardrails input check and the LLM call concurrently rather
+    # than sequentially - they don't depend on each other's result until
+    # AFTER both finish. This trades a small amount of extra API cost (the
+    # LLM still runs even on requests that end up refused) for meaningfully
+    # lower latency: total time becomes roughly max(guardrails, LLM)
+    # instead of their sum.
+    safe_input_task = asyncio.create_task(is_safe_input(transcript))
+    answer_task = asyncio.create_task(answer_query(transcript))
+    safe_input, answer = await asyncio.gather(safe_input_task, answer_task)
+
     t1 = time.time()
-    print(f"[TIMING] guardrails input check: {t1 - t0:.2f}s")
+    print(f"[TIMING] guardrails + LLM concurrently: {t1 - t0:.2f}s")
 
     if not safe_input:
-        return {"transcript": transcript, "answer": SAFE_REFUSAL, "audio_base64": await text_to_speech(SAFE_REFUSAL)}
-
-    answer = await answer_query(transcript)
-    t2 = time.time()
-    print(f"[TIMING] LLM (incl. any tool calls): {t2 - t1:.2f}s")
-
-    if not is_safe_output(answer):
+        answer = SAFE_REFUSAL
+    elif not is_safe_output(answer):
         answer = SAFE_REFUSAL
 
     audio = await text_to_speech(answer)
-    t3 = time.time()
-    print(f"[TIMING] TTS: {t3 - t2:.2f}s")
-    print(f"[TIMING] TOTAL: {t3 - t0:.2f}s")
+    t2 = time.time()
+    print(f"[TIMING] TTS: {t2 - t1:.2f}s")
+    print(f"[TIMING] TOTAL: {t2 - t0:.2f}s")
 
     return {"transcript": transcript, "answer": answer, "audio_base64": audio}
 
