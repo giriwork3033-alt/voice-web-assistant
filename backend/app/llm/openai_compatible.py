@@ -52,7 +52,11 @@ class OpenAICompatibleProvider(LLMProvider):
         msg = first.choices[0].message
 
         if not msg.tool_calls:
+            print("[LLM] answered directly, no tool call")
             return (msg.content or "I could not generate a response.").strip()
+
+        print(f"[LLM] requested {len(msg.tool_calls)} tool call(s): "
+              f"{[tc.function.name for tc in msg.tool_calls]}")
 
         messages.append(msg.model_dump(exclude_none=True))
         for tc in msg.tool_calls:
@@ -61,6 +65,7 @@ class OpenAICompatibleProvider(LLMProvider):
             except json.JSONDecodeError:
                 args = {}
             result = await run_tool(tc.function.name, args)
+            print(f"[TOOL RESULT] {tc.function.name} -> {str(result)[:150]}")
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc.id,
