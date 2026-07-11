@@ -89,10 +89,15 @@ async def ask_text(request: Request, text: Optional[str] = Form(None)):
 
 @app.post("/voice")
 async def voice(file: UploadFile = File(...)):
+    import time
+    t_upload = time.time()
+
     suffix = os.path.splitext(file.filename or "audio.webm")[1] or ".webm"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(await file.read())
         path = tmp.name
+
+    t_stt_start = time.time()
     try:
         transcript = await speech_to_text(path)
     finally:
@@ -100,4 +105,8 @@ async def voice(file: UploadFile = File(...)):
             os.remove(path)
         except OSError:
             pass
+    t_stt_end = time.time()
+    print(f"[TIMING] file upload handling: {t_stt_start - t_upload:.2f}s")
+    print(f"[TIMING] STT (faster-whisper): {t_stt_end - t_stt_start:.2f}s")
+
     return await _build_response(transcript)

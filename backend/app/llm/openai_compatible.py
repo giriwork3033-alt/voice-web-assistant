@@ -78,3 +78,19 @@ class OpenAICompatibleProvider(LLMProvider):
             temperature=0.2,
         ))
         return (final.choices[0].message.content or "I could not generate a response.").strip()
+
+    async def answer_without_tools(self, user_text: str) -> str:
+        """Fallback: answer without any tool definitions, forcing the model
+        to respond directly. Used when the normal tool-calling path fails
+        due to a malformed tool-call generation on the API side."""
+        print("[LLM] answering without tools (fallback)")
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_text},
+        ]
+        resp = await _with_retries(lambda: self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.2,
+        ))
+        return (resp.choices[0].message.content or "I could not generate a response.").strip()
