@@ -13,12 +13,13 @@ from .agent import answer_query
 from .config import settings
 from .guardrails import is_safe_input, is_safe_output, SAFE_REFUSAL
 from .speech import speech_to_text, text_to_speech
-#from .avatar_routes import router as avatar_router
+from .anam_routes import router as anam_router
+
 
 
 
 app = FastAPI(title="Voice Web Assistant", version="1.0.0")
-#app.include_router(avatar_router)
+app.include_router(anam_router)
 
 app.add_middleware(
     CORSMiddleware,
