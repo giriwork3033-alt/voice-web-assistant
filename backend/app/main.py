@@ -36,7 +36,9 @@ def health():
     return {"status": "ok", "llm_provider": settings.llm_provider}
 
 async def _build_response(transcript: str):
+    import time
     transcript = (transcript or "").strip()
+    start_time = time.time()
     if not transcript:
         answer = "I couldn't understand the input. Please try again."
         return {"transcript": "", "answer": answer, "audio_base64": await text_to_speech(answer)}
@@ -48,6 +50,8 @@ async def _build_response(transcript: str):
     if not is_safe_output(answer):
         answer = SAFE_REFUSAL
     audio = await text_to_speech(answer)
+    end_time = time.time()
+    print(f"Response time: {end_time - start_time:.2f} seconds")
     return {"transcript": transcript, "answer": answer, "audio_base64": audio}
 
 @app.post("/ask-text")
