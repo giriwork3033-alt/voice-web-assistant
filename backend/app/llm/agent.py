@@ -9,10 +9,6 @@ async def answer_query(user_text: str) -> str:
         return await provider.answer(user_text)
     except Exception as e:
         error_str = str(e).lower()
-        # Groq sometimes generates malformed tool-call XML instead of
-        # valid JSON, causing a 400 "Failed to call a function" error.
-        # Rather than showing raw error text to the user, retry once
-        # without tools so the model answers directly.
         if "failed to call a function" in error_str or "tool_use_failed" in error_str:
             print(f"[LLM] tool call failed ({type(e).__name__}), retrying without tools")
             try:
