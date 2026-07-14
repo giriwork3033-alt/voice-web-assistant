@@ -103,9 +103,10 @@ async def _get_weather_open_meteo(city: str) -> str | None:
     """
 
     try:
-       if not location:
-        print(f"[TOOL] Open-Meteo could not geocode '{city}'")
-        return None
+        location = await _geocode_city(city)
+        if not location:
+         print(f"[TOOL] Open-Meteo could not geocode '{city}'")
+         return None
 
         lat, lon, label = location
 
