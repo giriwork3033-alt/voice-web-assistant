@@ -122,7 +122,9 @@ function App() {
       if (avatarMode === 'anam' && anamClientRef.current) {
         // Photorealistic avatar speaks with lip-sync
         anamClientRef.current.talk(text);
-        setTimeout(() => setPhase((p) => (p === 'speaking' ? 'connected' : p)), 10000);
+        // Estimate speaking duration: ~80ms per character, minimum 2s
+        const estimatedMs = Math.max(2000, text.length * 80);
+        setTimeout(() => setPhase((p) => (p === 'speaking' ? 'connected' : p)), estimatedMs);
       } else {
         // Fallback: play Edge-TTS audio from the backend response
         playAudioFallback(data.audio_base64);
@@ -284,7 +286,7 @@ function App() {
             <button
               className={`mic-inline ${listening ? 'active' : ''}`}
               onClick={listening ? stopListening : startListening}
-              disabled={phase === 'thinking' || phase === 'speaking'}
+              disabled={phase === 'thinking'}
               title={listening ? 'Stop listening' : 'Start listening'}
             >
               {listening ? <Square size={18} /> : <Mic size={18} />}
@@ -295,14 +297,14 @@ function App() {
               onChange={(e) => setTyped(e.target.value)}
               placeholder={listening ? 'Listening...' : 'Type or speak your question'}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              disabled={phase === 'thinking' || phase === 'speaking'}
+              disabled={phase === 'thinking'}
               className={listening ? 'input-listening' : ''}
             />
 
             <button
               className="send-btn"
               onClick={handleSend}
-              disabled={!typed.trim() || phase === 'thinking' || phase === 'speaking'}
+              disabled={!typed.trim() || phase === 'thinking'}
               title="Send question"
             >
               <Send size={18} />

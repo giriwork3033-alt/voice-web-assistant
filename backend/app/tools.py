@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import time
 import httpx
 from ddgs import DDGS
+
+# Simple in-memory cache for weather results (5 minute TTL per city)
+_weather_cache: dict[str, tuple[str, float]] = {}
+_CACHE_TTL = 300  # 5 minutes
+
 
 async def _geocode_city(city: str) -> tuple[float, float, str] | None:
     url = "https://geocoding-api.open-meteo.com/v1/search"
@@ -17,10 +24,20 @@ async def _geocode_city(city: str) -> tuple[float, float, str] | None:
     return float(item["latitude"]), float(item["longitude"]), name
 
 async def get_weather(city: str) -> str:
-    """Get current weather using free Open-Meteo. No API key needed."""
+    """Get current weather using free Open-Meteo. No API key needed.
+    Includes a brief cache and retry on 429 rate limits."""
     city = (city or "").strip()
     if not city:
         return "City was not provided."
+
+    # Check cache first
+    cache_key = city.lower()
+    if cache_key in _weather_cache:
+        cached_result, cached_time = _weather_cache[cache_key]
+        if time.time() - cached_time < _CACHE_TTL:
+            print(f"[TOOL] weather cache hit for '{city}'")
+            return cached_result
+
     loc = await _geocode_city(city)
     if not loc:
         return f"Could not find weather location for {city}."
@@ -32,15 +49,28 @@ async def get_weather(city: str) -> str:
         "current": "temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code",
         "timezone": "auto",
     }
-    async with httpx.AsyncClient(timeout=12) as client:
-        r = await client.get(url, params=params)
-        r.raise_for_status()
-    cur = r.json().get("current", {})
-    return (
-        f"Current weather in {label}: temperature {cur.get('temperature_2m')}°C, "
-        f"feels like {cur.get('apparent_temperature')}°C, humidity {cur.get('relative_humidity_2m')}%, "
-        f"wind speed {cur.get('wind_speed_10m')} km/h."
-    )
+
+    # Retry up to 3 times on 429 with increasing backoff
+    for attempt in range(3):
+        async with httpx.AsyncClient(timeout=12) as client:
+            r = await client.get(url, params=params)
+            if r.status_code == 429:
+                wait = (attempt + 1) * 2  # 2s, 4s, 6s
+                print(f"[TOOL] Open-Meteo 429, retrying in {wait}s (attempt {attempt + 1}/3)")
+                await asyncio.sleep(wait)
+                continue
+            r.raise_for_status()
+            cur = r.json().get("current", {})
+            result = (
+                f"Current weather in {label}: temperature {cur.get('temperature_2m')}°C, "
+                f"feels like {cur.get('apparent_temperature')}°C, humidity {cur.get('relative_humidity_2m')}%, "
+                f"wind speed {cur.get('wind_speed_10m')} km/h."
+            )
+            # Cache the result
+            _weather_cache[cache_key] = (result, time.time())
+            return result
+
+    return f"Weather service is busy right now. Please try again in a minute."
 
 async def web_search(query: str) -> str:
     """Search public web using DuckDuckGo. No API key needed."""
