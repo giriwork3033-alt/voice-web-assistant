@@ -8,4 +8,13 @@ async def answer_query(user_text: str) -> str:
         provider = get_llm_provider()
         return await provider.answer(user_text)
     except Exception as e:
-        return f"Backend LLM error: {type(e).__name__}: {str(e)}"
+        error_str = str(e).lower()
+        if "failed to call a function" in error_str or "tool_use_failed" in error_str:
+            print(f"[LLM] tool call failed ({type(e).__name__}), retrying without tools")
+            try:
+                provider = get_llm_provider()
+                return await provider.answer_without_tools(user_text)
+            except Exception:
+                pass
+        print(f"[LLM] unrecoverable error: {type(e).__name__}: {e}")
+        return "Sorry, something went wrong on my end. Please try again."

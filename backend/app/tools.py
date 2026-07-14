@@ -88,12 +88,20 @@ TOOL_SCHEMAS_OPENAI = [
 ]
 
 async def run_tool(name: str, args: dict) -> str:
+    """Execute a tool call. Catches all errors so the LLM gets a clean
+    'service unavailable' message instead of a raw stack trace that would
+    get spoken aloud to the user."""
     print(f"[TOOL CALL] {name}({args})")
-    if name == "get_weather":
-        result = await get_weather(args.get("city", ""))
-    elif name == "web_search":
-        result = await web_search(args.get("query", ""))
-    else:
-        result = f"Unknown tool: {name}"
-    print(f"[TOOL RESULT] {name} -> {result[:200]}")
-    return result
+    try:
+        if name == "get_weather":
+            result = await get_weather(args.get("city", ""))
+        elif name == "web_search":
+            result = await web_search(args.get("query", ""))
+        else:
+            result = f"Unknown tool: {name}"
+        print(f"[TOOL RESULT] {name} -> {result[:200]}")
+        return result
+    except Exception as e:
+        error_msg = f"The {name} service is temporarily unavailable. Please try again shortly."
+        print(f"[TOOL ERROR] {name} failed: {type(e).__name__}: {e}")
+        return error_msg
