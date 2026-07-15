@@ -27,6 +27,7 @@ app.add_middleware(
 )
 
 
+provider = settings.llm_provider
 
 
 
@@ -52,7 +53,7 @@ async def _build_response(transcript: str):
 
     safe_input_task = asyncio.create_task(is_safe_input(transcript))
     answer_task = asyncio.create_task(answer_query(transcript))
-    safe_input, (answer, source, provider) = await asyncio.gather(safe_input_task, answer_task)
+    safe_input, (answer, source) = await asyncio.gather(safe_input_task, answer_task)
 
     t1 = time.time()
     print(f"[TIMING] guardrails + LLM concurrently: {t1 - t0:.2f}s")
