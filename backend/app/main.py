@@ -69,6 +69,7 @@ async def _build_response(transcript: str):
     t2 = time.time()
     print(f"[TIMING] TTS: {t2 - t1:.2f}s")
     print(f"[TIMING] TOTAL: {t2 - t0:.2f}s")
+    answer = f"The source of this information is $Source and actual response: {answer}"
 
     return {"transcript": transcript, "answer": answer, "audio_base64": audio}
 
