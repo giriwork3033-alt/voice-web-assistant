@@ -26,6 +26,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+
+
+
 class AskRequest(BaseModel):
     text: str
 
@@ -48,7 +52,7 @@ async def _build_response(transcript: str):
 
     safe_input_task = asyncio.create_task(is_safe_input(transcript))
     answer_task = asyncio.create_task(answer_query(transcript))
-    safe_input, (answer, source) = await asyncio.gather(safe_input_task, answer_task)
+    safe_input, (answer, source, provider) = await asyncio.gather(safe_input_task, answer_task)
 
     t1 = time.time()
     print(f"[TIMING] guardrails + LLM concurrently: {t1 - t0:.2f}s")
@@ -66,7 +70,7 @@ async def _build_response(transcript: str):
     print(f"[TIMING] TOTAL: {t2 - t0:.2f}s")
     print(f"The source of this information is {source}")
     print(f"add the actual response:{answer}")
-    answer = "Actual Answer: {answer} | Source: {source}".format(answer=answer, source=source)
+    answer = "Actual Answer: {answer} | Source: {source} | Provider: {provider}".format(answer=answer, source=source, provider=provider)
     return {"transcript": transcript, "answer": answer, "audio_base64": audio}
 
 @app.post("/ask-text")
