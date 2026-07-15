@@ -66,7 +66,7 @@ async def _build_response(transcript: str):
     print(f"[TIMING] TOTAL: {t2 - t0:.2f}s")
     print(f"The source of this information is {source}")
     print(f"add the actual response:{answer}")
-
+    answer = "Actual Answer: {answer} | Source: {source}".format(answer=answer, source=source)
     return {"transcript": transcript, "answer": answer, "audio_base64": audio}
 
 @app.post("/ask-text")
