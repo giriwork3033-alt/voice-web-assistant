@@ -15,9 +15,6 @@ from .guardrails import is_safe_input, is_safe_output, SAFE_REFUSAL
 from .speech import speech_to_text, text_to_speech
 from .anam_routes import router as anam_router
 
-
-
-
 app = FastAPI(title="Voice Web Assistant", version="1.0.0")
 app.include_router(anam_router)
 
@@ -43,33 +40,32 @@ async def _build_response(transcript: str):
     transcript = (transcript or "").strip()
     if not transcript:
         answer = "I couldn't understand the input. Please try again."
+        print("The source of this information is n/a (empty input)")
+        print(f"add the actual response:{answer}")
         return {"transcript": "", "answer": answer, "audio_base64": await text_to_speech(answer)}
 
     t0 = time.time()
 
-    # Run the guardrails input check and the LLM call concurrently rather
-    # than sequentially - they don't depend on each other's result until
-    # AFTER both finish. This trades a small amount of extra API cost (the
-    # LLM still runs even on requests that end up refused) for meaningfully
-    # lower latency: total time becomes roughly max(guardrails, LLM)
-    # instead of their sum.
     safe_input_task = asyncio.create_task(is_safe_input(transcript))
     answer_task = asyncio.create_task(answer_query(transcript))
-    safe_input, answer = await asyncio.gather(safe_input_task, answer_task)
+    safe_input, (answer, source) = await asyncio.gather(safe_input_task, answer_task)
 
     t1 = time.time()
     print(f"[TIMING] guardrails + LLM concurrently: {t1 - t0:.2f}s")
 
     if not safe_input:
         answer = SAFE_REFUSAL
+        source = "guardrails (input)"
     elif not is_safe_output(answer):
         answer = SAFE_REFUSAL
+        source = "guardrails (output)"
 
     audio = await text_to_speech(answer)
     t2 = time.time()
     print(f"[TIMING] TTS: {t2 - t1:.2f}s")
     print(f"[TIMING] TOTAL: {t2 - t0:.2f}s")
-    answer = f"The source of this information is $Source and actual response: {answer}"
+    print(f"The source of this information is {source}")
+    print(f"add the actual response:{answer}")
 
     return {"transcript": transcript, "answer": answer, "audio_base64": audio}
 

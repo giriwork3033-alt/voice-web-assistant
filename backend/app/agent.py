@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .llm import get_llm_provider
 
-async def answer_query(user_text: str) -> str:
+async def answer_query(user_text: str) -> tuple[str, str]:
     """Send every query to the selected LLM. The LLM decides whether to answer directly or call tools."""
     try:
         provider = get_llm_provider()
@@ -17,4 +17,4 @@ async def answer_query(user_text: str) -> str:
             except Exception:
                 pass
         print(f"[LLM] unrecoverable error: {type(e).__name__}: {e}")
-        return "Sorry, something went wrong on my end. Please try again."
+        return "Sorry, something went wrong on my end. Please try again.", "error"

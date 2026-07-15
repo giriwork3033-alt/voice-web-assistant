@@ -34,5 +34,5 @@ information right now.
 
 class LLMProvider(ABC):
     @abstractmethod
-    async def answer(self, user_text: str) -> str:
+    async def answer(self, user_text: str) -> tuple[str, str]:
         raise NotImplementedError
