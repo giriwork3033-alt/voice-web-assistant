@@ -292,6 +292,76 @@ h1 {
   color: #d0d0d8;
 }
 
+.response-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+}
+
+.response-meta span {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid rgba(162, 155, 254, 0.2);
+  border-radius: 999px;
+  background: rgba(108, 92, 231, 0.1);
+  color: #bbb6f6;
+  font-size: 0.72rem;
+}
+
+.references {
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.references strong {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: #aaa;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.references ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+}
+
+.references a {
+  display: block;
+  padding: 0.6rem 0.7rem;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.035);
+  color: #c9c5ff;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+
+.references a:hover {
+  background: rgba(108, 92, 231, 0.12);
+  color: #fff;
+}
+
+.references a span,
+.references a small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.references a span {
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.references a small {
+  margin-top: 0.2rem;
+  color: #737380;
+  font-size: 0.68rem;
+}
+
 /* ---- Fallback notice ---- */
 .fallback-notice {
   font-size: 0.78rem;

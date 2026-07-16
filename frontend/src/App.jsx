@@ -13,6 +13,9 @@ function App() {
   // idle | connecting | connected | listening | thinking | speaking | error
   const [transcript, setTranscript] = useState('');
   const [answer, setAnswer] = useState('');
+  const [provider, setProvider] = useState('');
+  const [source, setSource] = useState('');
+  const [refSites, setRefSites] = useState([]);
   const [typed, setTyped] = useState('');
   const [listening, setListening] = useState(false);
   const [avatarMode, setAvatarMode] = useState('anam'); // 'anam' | 'fallback'
@@ -107,6 +110,9 @@ function App() {
     if (!question.trim()) return;
     setTranscript(question);
     setAnswer('');
+    setProvider('');
+    setSource('');
+    setRefSites([]);
     setTyped('');
     setPhase('thinking');
 
@@ -117,6 +123,9 @@ function App() {
       const data = await res.json();
       const text = data.answer || 'I could not generate a response.';
       setAnswer(text);
+      setProvider(data.provider || '');
+      setSource(data.source || '');
+      setRefSites(Array.isArray(data.refSites) ? data.refSites : []);
       setPhase('speaking');
 
       if (avatarMode === 'anam' && anamClientRef.current) {
@@ -132,6 +141,9 @@ function App() {
     } catch (err) {
       console.error('[Backend]', err);
       setAnswer('Something went wrong. Please try again.');
+      setProvider('');
+      setSource('');
+      setRefSites([]);
       setPhase('connected');
     }
   }, [avatarMode]);
@@ -322,6 +334,27 @@ function App() {
             <div className="panel">
               <b>Assistant</b>
               <p>{answer || (phase === 'thinking' ? 'Thinking...' : '')}</p>
+              {(provider || source) && (
+                <div className="response-meta">
+                  {provider && <span>Provider: {provider}</span>}
+                  {source && <span>Source: {source}</span>}
+                </div>
+              )}
+              {refSites.length > 0 && (
+                <div className="references">
+                  <strong>Reference sites</strong>
+                  <ul>
+                    {refSites.map((site, index) => (
+                      <li key={`${site.url || site.title}-${index}`}>
+                        <a href={site.url} target="_blank" rel="noreferrer">
+                          <span>{site.title || site.url}</span>
+                          <small>{site.url}</small>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </>
         )}
