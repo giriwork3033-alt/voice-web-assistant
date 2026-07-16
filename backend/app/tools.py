@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from typing import TypedDict
 
 import httpx
 from ddgs import DDGS
@@ -24,6 +25,16 @@ _LOCATION_CACHE_TTL = 86_400   # 24 hours
 
 _weather_cache: dict[str, tuple[str, float]] = {}
 _location_cache: dict[str, tuple[float, float, str, float]] = {}
+
+
+class RefSite(TypedDict):
+    title: str
+    url: str
+
+
+class WebSearchResult(TypedDict):
+    context: str
+    sources: list[RefSite]
 
 
 # -------------------------------------------------------------------
@@ -316,36 +327,41 @@ async def get_weather(city: str) -> str:
 # Web search tool
 # -------------------------------------------------------------------
 
-async def web_search(query: str) -> str:
+async def web_search(query: str) -> WebSearchResult:
     query = (query or "").strip()
 
     if not query:
-        return "Search query was empty."
+        return {"context": "Search query was empty.", "sources": []}
 
     try:
         results = await asyncio.to_thread(
             lambda: list(DDGS().text(query, max_results=3))
         )
 
-        rows = []
+        rows: list[str] = []
+        sources: list[RefSite] = []
 
         for result in results:
             title = result.get("title", "Untitled")
             body = result.get("body", "")
-            href = result.get("href", "")
+            href = result.get("href") or result.get("url") or ""
 
             rows.append(
                 f"{title}: {body} Source: {href}"
             )
 
-        return "\n".join(rows) if rows else "No useful search results found."
+            if href:
+                sources.append({"title": title, "url": href})
+
+        context = "\n".join(rows) if rows else "No useful search results found."
+        return {"context": context, "sources": sources}
 
     except Exception as error:
         print(
             f"[TOOL ERROR] Web search failed: "
             f"{type(error).__name__}: {error}"
         )
-        return "Search is temporarily unavailable."
+        return {"context": "Search is temporarily unavailable.", "sources": []}
 
 
 # -------------------------------------------------------------------
@@ -398,7 +414,7 @@ TOOL_SCHEMAS_OPENAI = [
 # Tool runner
 # -------------------------------------------------------------------
 
-async def run_tool(name: str, args: dict) -> str:
+async def run_tool(name: str, args: dict) -> str | WebSearchResult:
     print(f"[TOOL CALL] {name}({args})")
 
     try:
@@ -415,7 +431,8 @@ async def run_tool(name: str, args: dict) -> str:
         else:
             result = f"Unknown tool: {name}"
 
-        print(f"[TOOL RESULT] {name} -> {result[:200]}")
+        preview = result["context"] if isinstance(result, dict) else result
+        print(f"[TOOL RESULT] {name} -> {preview[:200]}")
         return result
 
     except Exception as error:

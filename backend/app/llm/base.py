@@ -1,5 +1,17 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from typing import TypedDict
+
+
+class RefSite(TypedDict):
+    title: str
+    url: str
+
+
+class ProviderResponse(TypedDict):
+    answer: str
+    source: str
+    refSites: list[RefSite]
 
 SYSTEM_PROMPT = """
 You are a safe, concise voice assistant. Your responses are spoken aloud,
@@ -34,5 +46,5 @@ information right now.
 
 class LLMProvider(ABC):
     @abstractmethod
-    async def answer(self, user_text: str) -> tuple[str, str]:
+    async def answer(self, user_text: str) -> ProviderResponse:
         raise NotImplementedError

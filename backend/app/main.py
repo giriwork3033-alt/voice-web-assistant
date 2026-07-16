@@ -27,10 +27,6 @@ app.add_middleware(
 )
 
 
-provider = settings.llm_provider
-
-
-
 class AskRequest(BaseModel):
     text: str
 
@@ -47,13 +43,23 @@ async def _build_response(transcript: str):
         answer = "I couldn't understand the input. Please try again."
         print("The source of this information is n/a (empty input)")
         print(f"add the actual response:{answer}")
-        return {"transcript": "", "answer": answer, "audio_base64": await text_to_speech(answer)}
+        return {
+            "transcript": "",
+            "answer": answer,
+            "provider": settings.llm_provider,
+            "source": "n/a (empty input)",
+            "refSites": [],
+            "audio_base64": await text_to_speech(answer),
+        }
 
     t0 = time.time()
 
     safe_input_task = asyncio.create_task(is_safe_input(transcript))
     answer_task = asyncio.create_task(answer_query(transcript))
-    safe_input, (answer, source) = await asyncio.gather(safe_input_task, answer_task)
+    safe_input, provider_response = await asyncio.gather(safe_input_task, answer_task)
+    answer = provider_response["answer"]
+    source = provider_response["source"]
+    ref_sites = provider_response["refSites"]
 
     t1 = time.time()
     print(f"[TIMING] guardrails + LLM concurrently: {t1 - t0:.2f}s")
@@ -61,9 +67,11 @@ async def _build_response(transcript: str):
     if not safe_input:
         answer = SAFE_REFUSAL
         source = "guardrails (input)"
+        ref_sites = []
     elif not is_safe_output(answer):
         answer = SAFE_REFUSAL
         source = "guardrails (output)"
+        ref_sites = []
 
     audio = await text_to_speech(answer)
     t2 = time.time()
@@ -71,8 +79,14 @@ async def _build_response(transcript: str):
     print(f"[TIMING] TOTAL: {t2 - t0:.2f}s")
     print(f"The source of this information is {source}")
     print(f"add the actual response:{answer}")
-    answer = "Actual Answer: {answer} | Source: {source} | Provider: {provider}".format(answer=answer, source=source, provider=provider)
-    return {"transcript": transcript, "answer": answer, "audio_base64": audio}
+    return {
+        "transcript": transcript,
+        "answer": answer,
+        "provider": settings.llm_provider,
+        "source": source,
+        "refSites": ref_sites,
+        "audio_base64": audio,
+    }
 
 @app.post("/ask-text")
 async def ask_text(request: Request, text: Optional[str] = Form(None)):

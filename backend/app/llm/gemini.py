@@ -3,7 +3,7 @@ from __future__ import annotations
 from google import genai
 from google.genai import types
 from google.genai.errors import ClientError
-from .base import LLMProvider, SYSTEM_PROMPT
+from .base import LLMProvider, ProviderResponse, RefSite, SYSTEM_PROMPT
 from ..tools import run_tool
 
 weather_decl = types.FunctionDeclaration(
@@ -38,7 +38,7 @@ class GeminiProvider(LLMProvider):
             temperature=0.2,
         )
 
-    async def answer(self, user_text: str) -> str:
+    async def answer(self, user_text: str) -> ProviderResponse:
         try:
             first = self.client.models.generate_content(
                 model=self.model,
@@ -46,7 +46,11 @@ class GeminiProvider(LLMProvider):
                 config=self.config,
             )
         except ClientError as e:
-            return f"LLM provider error: {e.status_code}. Quota or API issue. Try another provider like Groq."
+            return {
+                "answer": f"LLM provider error: {e.status_code}. Quota or API issue. Try another provider like Groq.",
+                "source": "error",
+                "refSites": [],
+            }
 
         calls = []
         try:
@@ -57,12 +61,24 @@ class GeminiProvider(LLMProvider):
             calls = []
 
         if not calls:
-            return (first.text or "I could not generate a response.").strip()
+            return {
+                "answer": (first.text or "I could not generate a response.").strip(),
+                "source": "general knowledge",
+                "refSites": [],
+            }
 
         tool_parts = []
+        tool_names: list[str] = []
+        ref_sites: list[RefSite] = []
         for call in calls:
             result = await run_tool(call.name, dict(call.args or {}))
-            tool_parts.append(types.Part.from_function_response(name=call.name, response={"result": result}))
+            tool_names.append(call.name)
+            if isinstance(result, dict):
+                tool_context = result["context"]
+                ref_sites.extend(result["sources"])
+            else:
+                tool_context = result
+            tool_parts.append(types.Part.from_function_response(name=call.name, response={"result": tool_context}))
 
         try:
             final = self.client.models.generate_content(
@@ -74,6 +90,14 @@ class GeminiProvider(LLMProvider):
                 ],
                 config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT, temperature=0.2),
             )
-            return (final.text or "I could not generate a response.").strip()
+            return {
+                "answer": (final.text or "I could not generate a response.").strip(),
+                "source": ", ".join(tool_names),
+                "refSites": ref_sites,
+            }
         except ClientError as e:
-            return f"LLM provider error: {e.status_code}. Tool ran, but final response failed."
+            return {
+                "answer": f"LLM provider error: {e.status_code}. Tool ran, but final response failed.",
+                "source": ", ".join(tool_names),
+                "refSites": ref_sites,
+            }

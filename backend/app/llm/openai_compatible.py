@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from openai import AsyncOpenAI
-from .base import LLMProvider, SYSTEM_PROMPT
+from .base import LLMProvider, ProviderResponse, RefSite, SYSTEM_PROMPT
 from ..tools import TOOL_SCHEMAS_OPENAI, run_tool
 
 RETRY_ATTEMPTS = 2
@@ -30,9 +30,8 @@ class OpenAICompatibleProvider(LLMProvider):
         self.model = model
         self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
-    async def answer(self, user_text: str) -> tuple[str, str]:
-        """Returns (answer_text, source) where source is 'general knowledge'
-        or the tool name(s) actually used to produce the answer."""
+    async def answer(self, user_text: str) -> ProviderResponse:
+        """Return the answer, its source, and any web reference sites."""
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_text},
@@ -49,12 +48,17 @@ class OpenAICompatibleProvider(LLMProvider):
 
         if not msg.tool_calls:
             print("[LLM] answered directly, no tool call")
-            return (msg.content or "I could not generate a response.").strip(), "general knowledge"
+            return {
+                "answer": (msg.content or "I could not generate a response.").strip(),
+                "source": "general knowledge",
+                "refSites": [],
+            }
 
         tool_names = [tc.function.name for tc in msg.tool_calls]
         print(f"[LLM] requested {len(msg.tool_calls)} tool call(s): {tool_names}")
 
         messages.append(msg.model_dump(exclude_none=True))
+        ref_sites: list[RefSite] = []
         for tc in msg.tool_calls:
             try:
                 args = json.loads(tc.function.arguments or "{}")
@@ -62,10 +66,15 @@ class OpenAICompatibleProvider(LLMProvider):
                 args = {}
             result = await run_tool(tc.function.name, args)
             print(f"[TOOL RESULT] {tc.function.name} -> {str(result)[:150]}")
+            if isinstance(result, dict):
+                tool_context = result["context"]
+                ref_sites.extend(result["sources"])
+            else:
+                tool_context = result
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc.id,
-                "content": result,
+                "content": tool_context,
             })
 
         final = await _with_retries(lambda: self.client.chat.completions.create(
@@ -75,9 +84,9 @@ class OpenAICompatibleProvider(LLMProvider):
         ))
         answer_text = (final.choices[0].message.content or "I could not generate a response.").strip()
         source = ", ".join(tool_names)
-        return answer_text, source
+        return {"answer": answer_text, "source": source, "refSites": ref_sites}
 
-    async def answer_without_tools(self, user_text: str) -> tuple[str, str]:
+    async def answer_without_tools(self, user_text: str) -> ProviderResponse:
         """Fallback: answer without any tool definitions, forcing the model
         to respond directly. Used when the normal tool-calling path fails
         due to a malformed tool-call generation on the API side."""
@@ -92,4 +101,8 @@ class OpenAICompatibleProvider(LLMProvider):
             temperature=0.2,
         ))
         answer_text = (resp.choices[0].message.content or "I could not generate a response.").strip()
-        return answer_text, "general knowledge (tool-call fallback)"
+        return {
+            "answer": answer_text,
+            "source": "general knowledge (tool-call fallback)",
+            "refSites": [],
+        }
